@@ -1,0 +1,249 @@
+CREATE DATABASE biblioteca;
+
+USE biblioteca;
+
+CREATE TABLE usuarios (
+id_usuario INT PRIMARY KEY AUTO_INCREMENT,
+nombre VARCHAR(30) NOT NULL,
+apellido VARCHAR(50) NOT NULL,
+dni INT UNIQUE NOT NULL,
+email VARCHAR(100) UNIQUE DEFAULT NULL,
+nacionalidad VARCHAR(30) DEFAULT "Argentina",
+telefono VARCHAR (25) UNIQUE DEFAULT NULL
+);
+
+
+
+CREATE TABLE bibliotecarios (
+id_bibliotecario INT PRIMARY KEY AUTO_INCREMENT,
+nombre VARCHAR(30) NOT NULL,
+apellido VARCHAR(50) NOT NULL,
+email VARCHAR(100) UNIQUE DEFAULT NULL,
+puesto VARCHAR(50)
+);
+
+
+
+CREATE TABLE categorias (
+id_categoria INT PRIMARY KEY AUTO_INCREMENT,
+nombre_categoria VARCHAR(50)
+);
+
+
+
+CREATE TABLE autores (
+
+id_autor INT PRIMARY KEY AUTO_INCREMENT,
+nombre_autor VARCHAR(50)
+);
+
+
+
+CREATE TABLE libros (
+id_libro INT PRIMARY KEY AUTO_INCREMENT,
+titulo VARCHAR(150),
+id_autor INT,
+id_categoria INT,
+fecha_de_publicacion INT,
+stock INT,
+FOREIGN KEY (id_autor) REFERENCES autores(id_autor),
+FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria)
+);
+
+
+
+CREATE TABLE prestamos (
+id_prestamo INT PRIMARY KEY AUTO_INCREMENT,
+id_usuario INT,
+fecha_prestamo DATETIME DEFAULT CURRENT_TIMESTAMP,
+fecha_devolucion DATETIME DEFAULT CURRENT_TIMESTAMP,
+id_bibliotecario INT,
+FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecarios(id_bibliotecario)
+);
+
+
+
+CREATE TABLE detalle_prestamo (
+id_detalle INT PRIMARY KEY AUTO_INCREMENT,
+id_prestamo INT,
+id_libro INT,
+cantidad INT,
+FOREIGN KEY (id_prestamo) REFERENCES prestamos(id_prestamo),
+FOREIGN KEY (id_libro) REFERENCES libros(id_libro)
+);
+
+
+
+CREATE TABLE reservas (
+id_reserva INT PRIMARY KEY AUTO_INCREMENT,
+id_usuario INT,
+id_libro INT,
+fecha_reserva DATETIME DEFAULT CURRENT_TIMESTAMP,
+estado VARCHAR(50),
+FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+FOREIGN KEY (id_libro) REFERENCES libros(id_libro)
+);
+
+-- Script de inserción de datos en las bases.
+
+INSERT INTO autores (nombre_autor) VALUES
+('Mariana Enriquez'),
+('Gabriel García Márquez'),
+('Jane Austen'),
+('J.R.R. Tolkien'),
+('Stephen King'),
+('Edgar Allan Poe'),
+('J.K. Rowling'),
+('Franz Kafka'),
+('Stephen King'),
+('Charles Dickens');
+
+INSERT INTO categorias (nombre_categoria) VALUES
+('Ficción'),
+('Romance'),
+('Fantasía'),
+('Biografías'),
+('Poético'),
+('Dramático'),
+('Novela'),
+('Cuentos'),
+('Terrorautores');
+
+SELECT * FROM categorias;
+
+INSERT INTO libros (titulo, id_autor, id_categoria, fecha_de_publicacion, stock) VALUES
+('Cien años de soledad', 2, 1, 1967, 5),
+('Orgullo y prejuicio', 3, 2, 1813, 10),
+('El Señor de los Anillos', 4, 3, 1954, 3),
+('It', 5, 4, 1986, 7),
+('Crónica de una muerte anunciada', 2, 1, 1981, 8),
+('Las cosas que perdimos en el fuego', 1, 8, 2016, 6),
+('Harry Potter y la piedra filosofal', 7, 7, 1997, 5),
+('Los peligros de fumar en la cama', 1, 8, 2009, 3);
+
+INSERT INTO usuarios (nombre, apellido, dni, email, telefono) VALUES
+('Martin', 'Pérez', 43985475, 'martin.perez@gmail.com', '3519545781'),
+('Sofia', 'González', 31864759, 'sofia.gonzalez@gmail.com', '2978495818'),
+('Alejo', 'Lopez', 40945475, 'alejo.lopez@gmail.com', '3517485785'),
+('Carla', 'Frias', 41854749, 'carla.frias@gmail.com', '2974495817');
+
+INSERT INTO bibliotecarios (nombre, apellido, email, puesto) VALUES
+('Laura', 'Nara', 'laura.nara@email.com', 'Bibliotecaria Jefe'),
+('Carlos', 'Icardi', 'carlos.icardi@email.com', 'Bibliotecario');
+
+INSERT INTO prestamos (id_usuario, fecha_prestamo, fecha_devolucion, id_bibliotecario) VALUES
+(1, '2025-05-10 10:00:00', '2025-05-20 10:00:00', 1),
+(2, '2025-05-12 14:30:00', '2025-05-25 14:30:00', 2),
+(1, '2025-05-15 09:00:00', '2025-05-22 09:00:00', 1),
+(3, '2025-03-15 09:30:00', '2025-04-22 09:00:00', 2),
+(4, '2025-05-01 11:00:00', '2025-05-07 13:00:00', 1),
+(3, '2025-04-10 08:00:00', '2025-05-14 18:00:00', 2);
+	 
+INSERT INTO detalle_prestamo (id_prestamo, id_libro, cantidad) VALUES
+(1, 1, 1),
+(1, 2, 1),
+(2, 3, 1),
+(4, 5, 1),
+(5, 7, 1),
+(3, 1, 1);
+
+INSERT INTO reservas (id_usuario, id_libro, fecha_reserva, estado) 
+VALUES 
+(2, 4, CURRENT_TIMESTAMP(), 'Pendiente'),
+(3, 7, CURRENT_TIMESTAMP(), 'Pendiente');
+
+-- Script de creación de Vistas
+
+-- Vista: Listado de libros con autor y categoría
+-- Objetivo: presentar un listado de todos los libros disponibles, mostrando el título del libro junto con el nombre de su autor y la categoría a la que pertenece. Esto puede ser útil para búsquedas y para tener una visión general del catálogo
+-- Tablas que la componen: libros, autores, categorias.
+
+CREATE VIEW libro_autor_categoria AS
+SELECT
+    l.titulo AS TituloLibro,
+    a.nombre_autor AS Autor,
+    c.nombre_categoria AS Categoria
+FROM
+    libros l
+JOIN
+    autores a ON l.id_autor = a.id_autor
+JOIN
+    categorias c ON l.id_categoria = c.id_categorialibro_autor_categoria;
+ 
+ -- Vista: Los 5 libros más prestados
+ -- Objetivo: Mostrar un listado de los 5 libros que han sido prestados con mayor frecuencia. Esto puede ser útil para identificar los títulos más populares de la biblioteca.
+ -- Tablas involucradas: detalle_prestamo y libros. 
+    
+CREATE VIEW vista_libros_mas_prestados AS
+SELECT
+    l.titulo,
+    COUNT(dp.id_libro) AS cantidad_prestamos
+FROM
+    detalle_prestamo dp
+JOIN
+    libros l ON dp.id_libro = l.id_libro
+GROUP BY
+    l.titulo
+ORDER BY
+    cantidad_prestamos DESC
+LIMIT 5;
+
+-- Script de creación de Funciones
+
+-- Función: Promedio de días para devolver un libro
+-- Objetivo: Calcular el tiempo promedio (en días) que tardan los usuarios en devolver un libro después de haberlo tomado prestado. Esto podría ayudar a evaluar la eficiencia de las devoluciones.
+-- Tablas involucradas: prestamos
+
+DELIMITER //
+CREATE FUNCTION promedio_dias_devolucion()
+RETURNS DECIMAL(10, 2)
+DETERMINISTIC
+BEGIN
+    DECLARE promedio DECIMAL(10, 2);
+    SELECT AVG(DATEDIFF(fecha_devolucion, fecha_prestamo)) INTO promedio
+    FROM prestamos;
+    RETURN promedio;
+END //
+DELIMITER ;
+
+-- Función: Calcular días transcurridos desde un préstamo
+-- Objetivo: Determinar cuánto tiempo ha transcurrido desde que un libro fue prestado, puede ser útil para analizar la duración de los préstamos.
+-- Tablas involucradas: prestamos
+
+DELIMITER //
+CREATE FUNCTION dias_desde_prestamo(fecha_prestamo DATETIME)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE dias INT;
+    SET dias = (fecha_devolucion, fecha_prestamo);
+    RETURN dias;
+END //
+DELIMITER ;
+
+-- Script de creación de Stored Procedures
+
+-- Stored Procedure: Registrar un nuevo usuario
+-- Objetivo: Facilitar la adición de nuevos usuarias a la base de datos sin necesidad de escribir la sentencia INSERT completa cada vez.
+-- Tablas involucradas: usuario.
+
+DELIMITER //
+
+CREATE PROCEDURE agregar_usuario (
+	IN p_nombre VARCHAR(30),
+    IN p_apellido VARCHAR(40),
+    IN p_dni INT,
+    IN p_email VARCHAR(100),
+    IN p_telefono VARCHAR(20)
+)
+BEGIN
+	INSERT INTO alumnos (
+		nombre, apellido, dni, email, telefono
+    )
+    VALUES (
+		p_nombre, p_apellido, p_dni, p_email, p_telefono
+    );        
+END //
+
+DELIMITER ;
