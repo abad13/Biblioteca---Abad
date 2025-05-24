@@ -169,7 +169,7 @@ FROM
 JOIN
     autores a ON l.id_autor = a.id_autor
 JOIN
-    categorias c ON l.id_categoria = c.id_categorialibro_autor_categoria;
+    categorias c ON l.id_categoria = c.id_categoria;
  
  -- Vista: Los 5 libros más prestados
  -- Objetivo: Mostrar un listado de los 5 libros que han sido prestados con mayor frecuencia. Esto puede ser útil para identificar los títulos más populares de la biblioteca.
