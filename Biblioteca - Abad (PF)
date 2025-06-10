@@ -1,0 +1,761 @@
+CREATE DATABASE IF NOT EXISTS biblioteca;
+USE biblioteca;
+
+CREATE TABLE usuarios (
+    id_usuario INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(30) NOT NULL,
+    apellido VARCHAR(50) NOT NULL,
+    dni INT UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE DEFAULT NULL,
+    nacionalidad VARCHAR(30) DEFAULT 'Argentina',
+    telefono VARCHAR(25) UNIQUE DEFAULT NULL
+);
+
+CREATE TABLE bibliotecarios (
+    id_bibliotecario INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(30) NOT NULL,
+    apellido VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE DEFAULT NULL,
+    puesto VARCHAR(50)
+);
+
+CREATE TABLE categorias (
+    id_categoria INT PRIMARY KEY AUTO_INCREMENT,
+    nombre_categoria VARCHAR(50) UNIQUE NOT NULL
+);
+
+CREATE TABLE autores (
+    id_autor INT PRIMARY KEY AUTO_INCREMENT,
+    nombre_autor VARCHAR(100) UNIQUE NOT NULL
+);
+
+CREATE TABLE editoriales (
+    id_editorial INT PRIMARY KEY AUTO_INCREMENT,
+    nombre_editorial VARCHAR(100) UNIQUE NOT NULL,
+    pais_origen VARCHAR(50)
+);
+
+CREATE TABLE libros (
+    id_libro INT PRIMARY KEY AUTO_INCREMENT,
+    titulo VARCHAR(255) NOT NULL, 
+    id_autor INT NOT NULL,
+    id_categoria INT NOT NULL,
+    id_editorial INT, 
+    fecha_de_publicacion INT,
+    stock INT NOT NULL DEFAULT 0,
+    activo BOOLEAN DEFAULT TRUE, 
+    FOREIGN KEY (id_autor) REFERENCES autores(id_autor),
+    FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria),
+    FOREIGN KEY (id_editorial) REFERENCES editoriales(id_editorial)
+);
+
+CREATE TABLE prestamos (
+    id_prestamo INT PRIMARY KEY AUTO_INCREMENT,
+    id_usuario INT NOT NULL,
+    fecha_prestamo DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fecha_devolucion_prevista DATETIME NOT NULL, 
+    fecha_devolucion_real DATETIME NULL, 
+    id_bibliotecario INT NOT NULL,
+    estado VARCHAR(50) DEFAULT 'Activo', -- 'Activo', 'Devuelto', 'Vencido'
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+    FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecarios(id_bibliotecario)
+);
+
+CREATE TABLE detalle_prestamo (
+    id_detalle INT PRIMARY KEY AUTO_INCREMENT,
+    id_prestamo INT NOT NULL,
+    id_libro INT NOT NULL,
+    cantidad INT NOT NULL DEFAULT 1 CHECK (cantidad = 1), 
+    FOREIGN KEY (id_prestamo) REFERENCES prestamos(id_prestamo),
+    FOREIGN KEY (id_libro) REFERENCES libros(id_libro)
+);
+
+CREATE TABLE reservas (
+    id_reserva INT PRIMARY KEY AUTO_INCREMENT,
+    id_usuario INT NOT NULL,
+    id_libro INT NOT NULL,
+    fecha_reserva DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fecha_expiracion DATETIME, 
+    estado VARCHAR(50) DEFAULT 'Pendiente', -- 'Pendiente', 'Disponible', 'Cancelada', 'Completada'
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+    FOREIGN KEY (id_libro) REFERENCES libros(id_libro)
+);
+
+CREATE TABLE multas (
+    id_multa INT PRIMARY KEY AUTO_INCREMENT,
+    id_prestamo INT NOT NULL,
+    monto DECIMAL(10, 2) NOT NULL,
+    fecha_multa DATETIME DEFAULT CURRENT_TIMESTAMP,
+    fecha_pago DATETIME NULL,
+    estado VARCHAR(50) DEFAULT 'Pendiente', -- 'Pendiente', 'Pagada', 'Anulada'
+    FOREIGN KEY (id_prestamo) REFERENCES prestamos(id_prestamo)
+);
+
+CREATE TABLE auditoria_libros (
+    id_auditoria INT PRIMARY KEY AUTO_INCREMENT,
+    id_libro INT NOT NULL,
+    campo_modificado VARCHAR(100),
+    valor_anterior VARCHAR(255),
+    valor_nuevo VARCHAR(255),
+    fecha_modificacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    id_bibliotecario INT,
+    FOREIGN KEY (id_libro) REFERENCES libros(id_libro),
+    FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecarios(id_bibliotecario)
+);
+
+CREATE TABLE log_prestamos (
+    id_log INT PRIMARY KEY AUTO_INCREMENT,
+    id_prestamo INT NOT NULL,
+    tipo_evento VARCHAR(50) NOT NULL, -- 'Creacion', 'Devolucion', 'Vencimiento', 'Multa'
+    fecha_evento DATETIME DEFAULT CURRENT_TIMESTAMP,
+    descripcion TEXT,
+    FOREIGN KEY (id_prestamo) REFERENCES prestamos(id_prestamo)
+);
+
+CREATE TABLE eventos_biblioteca (
+    id_evento INT PRIMARY KEY AUTO_INCREMENT,
+    nombre_evento VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    fecha_inicio DATETIME,
+    fecha_fin DATETIME,
+    lugar VARCHAR(100),
+    id_bibliotecario_organizador INT,
+    FOREIGN KEY (id_bibliotecario_organizador) REFERENCES bibliotecarios(id_bibliotecario)
+);
+
+CREATE TABLE personal_mantenimiento (
+    id_personal INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(50) NOT NULL,
+    apellido VARCHAR(50) NOT NULL,
+    rol VARCHAR(50) NOT NULL,
+    fecha_contratacion DATE
+);
+
+CREATE TABLE tipos_documento (
+    id_tipo_documento INT PRIMARY KEY AUTO_INCREMENT,
+    nombre_tipo VARCHAR(50) UNIQUE NOT NULL -- Ej: DNI, Pasaporte, Libreta Cívica
+);
+
+ALTER TABLE usuarios
+ADD COLUMN id_tipo_documento INT,
+ADD CONSTRAINT fk_usuarios_tipo_documento FOREIGN KEY (id_tipo_documento) REFERENCES tipos_documento(id_tipo_documento);
+
+-- Tabla de Hechos (1)
+-- `fact_prestamos`: Almacena métricas y dimensiones clave de cada préstamo para análisis
+CREATE TABLE fact_prestamos (
+    id_fact_prestamo INT PRIMARY KEY AUTO_INCREMENT,
+    id_prestamo INT NOT NULL, 
+    id_usuario INT NOT NULL,
+    id_libro INT NOT NULL,
+    id_bibliotecario INT NOT NULL,
+    fecha_prestamo_key INT NOT NULL, 
+    fecha_devolucion_real_key INT, 
+    cantidad_libros_prestados INT NOT NULL DEFAULT 1, 
+    dias_prestamo INT, 
+    monto_multa DECIMAL(10, 2) DEFAULT 0.00, 
+    FOREIGN KEY (id_prestamo) REFERENCES prestamos(id_prestamo),
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario),
+    FOREIGN KEY (id_libro) REFERENCES libros(id_libro),
+    FOREIGN KEY (id_bibliotecario) REFERENCES bibliotecarios(id_bibliotecario)
+);
+
+-- Script de inserción de datos en las bases.
+
+INSERT INTO tipos_documento (nombre_tipo) VALUES
+('DNI'),
+('Pasaporte'),
+('Libreta Cívica');
+
+UPDATE usuarios SET id_tipo_documento = 1 WHERE dni IN (43985475, 31864759, 40945475, 41854749);
+
+INSERT INTO autores (nombre_autor) VALUES
+('Mariana Enriquez'),
+('Gabriel García Márquez'),
+('Jane Austen'),
+('J.R.R. Tolkien'),
+('Stephen King'),
+('Edgar Allan Poe'),
+('J.K. Rowling'),
+('Franz Kafka'),
+('Charles Dickens'),
+('George Orwell'),
+('Aldous Huxley'),
+('Virginia Woolf'); 
+
+INSERT INTO categorias (nombre_categoria) VALUES
+('Ficción'),
+('Romance'),
+('Fantasía'),
+('Terror'), 
+('Biografías'),
+('Poesía'),
+('Drama'),
+('Novela'),
+('Cuentos'),
+('Ciencia Ficción'),
+('Distopía'); 
+
+INSERT INTO editoriales (nombre_editorial, pais_origen) VALUES
+('Editorial Planeta', 'España'),
+('Penguin Random House', 'Estados Unidos'),
+('Anagrama', 'España'),
+('Minotauro', 'España'),
+('HarperCollins', 'Estados Unidos');
+
+INSERT INTO libros (titulo, id_autor, id_categoria, id_editorial, fecha_de_publicacion, stock) VALUES
+('Cien años de soledad', (SELECT id_autor FROM autores WHERE nombre_autor = 'Gabriel García Márquez'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Novela'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Editorial Planeta'), 1967, 5),
+('Orgullo y prejuicio', (SELECT id_autor FROM autores WHERE nombre_autor = 'Jane Austen'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Romance'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Penguin Random House'), 1813, 10),
+('El Señor de los Anillos', (SELECT id_autor FROM autores WHERE nombre_autor = 'J.R.R. Tolkien'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Fantasía'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Minotauro'), 1954, 3),
+('It', (SELECT id_autor FROM autores WHERE nombre_autor = 'Stephen King'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Terror'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Penguin Random House'), 1986, 7),
+('Crónica de una muerte anunciada', (SELECT id_autor FROM autores WHERE nombre_autor = 'Gabriel García Márquez'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Novela'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Anagrama'), 1981, 8),
+('Las cosas que perdimos en el fuego', (SELECT id_autor FROM autores WHERE nombre_autor = 'Mariana Enriquez'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Cuentos'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Anagrama'), 2016, 6),
+('Harry Potter y la piedra filosofal', (SELECT id_autor FROM autores WHERE nombre_autor = 'J.K. Rowling'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Fantasía'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Penguin Random House'), 1997, 5),
+('Los peligros de fumar en la cama', (SELECT id_autor FROM autores WHERE nombre_autor = 'Mariana Enriquez'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Cuentos'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Anagrama'), 2009, 3),
+('1984', (SELECT id_autor FROM autores WHERE nombre_autor = 'George Orwell'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Distopía'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Editorial Planeta'), 1949, 4),
+('Un Mundo Feliz', (SELECT id_autor FROM autores WHERE nombre_autor = 'Aldous Huxley'), (SELECT id_categoria FROM categorias WHERE nombre_categoria = 'Distopía'), (SELECT id_editorial FROM editoriales WHERE nombre_editorial = 'Editorial Planeta'), 1932, 2); 
+
+INSERT INTO usuarios (nombre, apellido, dni, email, telefono, id_tipo_documento) VALUES
+('Martin', 'Pérez', 43985475, 'martin.perez@gmail.com', '3519545781', 1),
+('Sofia', 'González', 31864759, 'sofia.gonzalez@gmail.com', '2978495818', 1),
+('Alejo', 'Lopez', 40945475, 'alejo.lopez@gmail.com', '3517485785', 1),
+('Carla', 'Frias', 41854749, 'carla.frias@gmail.com', '2974495817', 1),
+('Diego', 'Rodriguez', 35123456, 'diego.r@gmail.com', '3511234567', 1); 
+
+INSERT INTO bibliotecarios (nombre, apellido, email, puesto) VALUES
+('Laura', 'Nara', 'laura.nara@email.com', 'Bibliotecaria Jefe'),
+('Carlos', 'Icardi', 'carlos.icardi@email.com', 'Bibliotecario'),
+('Elena', 'Vazquez', 'elena.v@email.com', 'Asistente de Biblioteca'); 
+
+INSERT INTO prestamos (id_usuario, fecha_prestamo, fecha_devolucion_prevista, id_bibliotecario, estado) VALUES
+(1, '2025-05-10 10:00:00', '2025-05-24 10:00:00', 1, 'Devuelto'), 
+(2, '2025-05-12 14:30:00', '2025-05-26 14:30:00', 2, 'Activo'), 
+(1, '2025-05-15 09:00:00', '2025-05-29 09:00:00', 1, 'Activo'), 
+(3, '2025-03-15 09:30:00', '2025-03-29 09:00:00', 2, 'Devuelto'), 
+(4, '2025-05-01 11:00:00', '2025-05-15 11:00:00', 1, 'Devuelto'), 
+(3, '2025-04-10 08:00:00', '2025-04-24 08:00:00', 2, 'Vencido'); 
+
+UPDATE prestamos SET fecha_devolucion_real = '2025-05-18 10:00:00' WHERE id_prestamo = 1; 
+UPDATE prestamos SET fecha_devolucion_real = '2025-04-01 09:30:00' WHERE id_prestamo = 4; 
+UPDATE prestamos SET fecha_devolucion_real = '2025-05-13 11:00:00' WHERE id_prestamo = 5; 
+
+INSERT INTO detalle_prestamo (id_prestamo, id_libro, cantidad) VALUES
+(1, (SELECT id_libro FROM libros WHERE titulo = 'Cien años de soledad'), 1),
+(1, (SELECT id_libro FROM libros WHERE titulo = 'Orgullo y prejuicio'), 1),
+(2, (SELECT id_libro FROM libros WHERE titulo = 'El Señor de los Anillos'), 1),
+(4, (SELECT id_libro FROM libros WHERE titulo = 'Crónica de una muerte anunciada'), 1),
+(5, (SELECT id_libro FROM libros WHERE titulo = 'Harry Potter y la piedra filosofal'), 1),
+(3, (SELECT id_libro FROM libros WHERE titulo = 'Cien años de soledad'), 1),
+(6, (SELECT id_libro FROM libros WHERE titulo = '1984'), 1);
+
+
+INSERT INTO reservas (id_usuario, id_libro, fecha_reserva, fecha_expiracion, estado)
+VALUES
+((SELECT id_usuario FROM usuarios WHERE nombre = 'Sofia'), (SELECT id_libro FROM libros WHERE titulo = 'It'), CURRENT_TIMESTAMP(), DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 7 DAY), 'Pendiente'),
+((SELECT id_usuario FROM usuarios WHERE nombre = 'Alejo'), (SELECT id_libro FROM libros WHERE titulo = 'Harry Potter y la piedra filosofal'), CURRENT_TIMESTAMP(), DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL 5 DAY), 'Pendiente');
+
+INSERT INTO multas (id_prestamo, monto, fecha_multa, estado) VALUES
+(4, 50.00, '2025-03-30 10:00:00', 'Pendiente'); 
+
+INSERT INTO log_prestamos (id_prestamo, tipo_evento, descripcion) VALUES
+(1, 'Creacion', 'Préstamo creado para Martin Pérez.'),
+(1, 'Devolucion', 'Libros de préstamo 1 devueltos.'),
+(4, 'Creacion', 'Préstamo creado para Alejo Lopez.'),
+(4, 'Vencimiento', 'Préstamo 4 ha vencido.'),
+(4, 'Devolucion', 'Libros de préstamo 4 devueltos con retraso.'),
+(6, 'Creacion', 'Préstamo creado para Alejo Lopez.'),
+(6, 'Vencimiento', 'Préstamo 6 ha vencido y no ha sido devuelto.');
+
+INSERT INTO eventos_biblioteca (nombre_evento, descripcion, fecha_inicio, fecha_fin, lugar, id_bibliotecario_organizador) VALUES
+('Feria del Libro Infantil', 'Exposición y venta de libros para niños.', '2025-07-01 09:00:00', '2025-07-05 18:00:00', 'Sala Principal', 1),
+('Club de Lectura: Clásicos', 'Reunión semanal para discutir clásicos de la literatura.', '2025-06-15 19:00:00', '2025-12-15 21:00:00', 'Sala de Reuniones', 2);
+
+INSERT INTO personal_mantenimiento (nombre, apellido, rol, fecha_contratacion) VALUES
+('Roberto', 'Gomez', 'Limpieza', '2022-01-10'),
+('Marta', 'Sanchez', 'Mantenimiento General', '2023-05-20');
+
+INSERT INTO fact_prestamos (id_prestamo, id_usuario, id_libro, id_bibliotecario, fecha_prestamo_key, cantidad_libros_prestados, dias_prestamo, monto_multa) VALUES
+(1, (SELECT id_usuario FROM usuarios WHERE nombre = 'Martin'), (SELECT id_libro FROM libros WHERE titulo = 'Cien años de soledad'), (SELECT id_bibliotecario FROM bibliotecarios WHERE nombre = 'Laura'), 20250510, 1, 8, 0.00), -- Préstamo 1
+(1, (SELECT id_usuario FROM usuarios WHERE nombre = 'Martin'), (SELECT id_libro FROM libros WHERE titulo = 'Orgullo y prejuicio'), (SELECT id_bibliotecario FROM bibliotecarios WHERE nombre = 'Laura'), 20250510, 1, 8, 0.00), -- Préstamo 1, 2do libro
+(4, (SELECT id_usuario FROM usuarios WHERE nombre = 'Alejo'), (SELECT id_libro FROM libros WHERE titulo = 'Crónica de una muerte anunciada'), (SELECT id_bibliotecario FROM bibliotecarios WHERE nombre = 'Carlos'), 20250315, 1, 17, 50.00), -- Préstamo 4 (con multa)
+(5, (SELECT id_usuario FROM usuarios WHERE nombre = 'Carla'), (SELECT id_libro FROM libros WHERE titulo = 'Harry Potter y la piedra filosofal'), (SELECT id_bibliotecario FROM bibliotecarios WHERE nombre = 'Laura'), 20250501, 1, 12, 0.00); -- Préstamo 5
+
+-- Script de creación de Vistas
+
+
+-- Vista: Listado de libros con autor y categoría
+-- Objetivo: presentar un listado de todos los libros disponibles, mostrando el título del libro junto con el nombre de su autor y la categoría a la que pertenece. Esto puede ser útil para búsquedas y para tener una visión general del catálogo
+-- Tablas que la componen: libros, autores, categorias.
+
+CREATE OR REPLACE VIEW libro_autor_categoria AS 
+SELECT
+    l.titulo AS TituloLibro,
+    a.nombre_autor AS Autor,
+    c.nombre_categoria AS Categoria,
+    e.nombre_editorial AS Editorial, 
+    l.stock AS StockActual
+FROM
+    libros l
+JOIN
+    autores a ON l.id_autor = a.id_autor
+JOIN
+    categorias c ON l.id_categoria = c.id_categoria
+LEFT JOIN 
+    editoriales e ON l.id_editorial = e.id_editorial;
+
+
+-- Vista: Los 5 libros más prestados
+ -- Objetivo: Mostrar un listado de los 5 libros que han sido prestados con mayor frecuencia. Esto puede ser útil para identificar los títulos más populares de la biblioteca.
+ -- Tablas involucradas: detalle_prestamo y libros. 
+ 
+CREATE OR REPLACE VIEW vista_libros_mas_prestados AS
+SELECT
+    l.titulo,
+    COUNT(dp.id_libro) AS cantidad_prestamos
+FROM
+    detalle_prestamo dp
+JOIN
+    libros l ON dp.id_libro = l.id_libro
+GROUP BY
+    l.titulo
+ORDER BY
+    cantidad_prestamos DESC
+LIMIT 5;
+
+-- Vista 3: Préstamos activos y vencidos (NUEVA)
+-- Objetivo: Identificar rápidamente los préstamos que aún no han sido devueltos y aquellos que ya excedieron su fecha prevista de devolución.
+-- Tablas Involucradas: prestamos, usuarios, detalle_prestamo, libros.
+
+CREATE VIEW vista_prestamos_activos_vencidos AS
+SELECT
+    p.id_prestamo,
+    u.nombre AS nombre_usuario,
+    u.apellido AS apellido_usuario,
+    l.titulo AS titulo_libro,
+    p.fecha_prestamo,
+    p.fecha_devolucion_prevista,
+    p.estado AS estado_prestamo,
+    IF(p.estado = 'Activo' AND CURRENT_DATE() > p.fecha_devolucion_prevista, 'Sí', 'No') AS esta_vencido,
+    DATEDIFF(CURRENT_DATE(), p.fecha_devolucion_prevista) AS dias_retraso_si_vencido
+FROM
+    prestamos p
+JOIN
+    usuarios u ON p.id_usuario = u.id_usuario
+JOIN
+    detalle_prestamo dp ON p.id_prestamo = dp.id_prestamo
+JOIN
+    libros l ON dp.id_libro = l.id_libro
+WHERE
+    p.estado IN ('Activo', 'Vencido'); -- Incluimos 'Vencido' para los que ya tienen ese estado
+
+-- Vista 4: Usuarios con multas pendientes (NUEVA)
+-- Objetivo: Listar los usuarios que tienen multas sin pagar y el monto total de sus multas pendientes.
+-- Tablas Involucradas: usuarios, prestamos, multas
+
+CREATE VIEW vista_multas_pendientes_por_usuario AS
+SELECT
+    u.id_usuario,
+    u.nombre AS nombre_usuario,
+    u.apellido AS apellido_usuario,
+    SUM(m.monto) AS total_multas_pendientes,
+    COUNT(m.id_multa) AS cantidad_multas_pendientes
+FROM
+    usuarios u
+JOIN
+    prestamos p ON u.id_usuario = p.id_usuario
+JOIN
+    multas m ON p.id_prestamo = m.id_prestamo
+WHERE
+    m.estado = 'Pendiente'
+GROUP BY
+    u.id_usuario, u.nombre, u.apellido
+HAVING
+    SUM(m.monto) > 0;
+
+-- Vista 5: Resumen de Stock por Categoría y Editorial (NUEVA)
+-- Objetivo: Proporcionar un resumen del número total de libros y su stock por categoría y editorial.
+-- Tablas Involucradas: libros, categorias, editoriales.
+
+CREATE VIEW vista_stock_por_categoria_editorial AS
+SELECT
+    c.nombre_categoria,
+    e.nombre_editorial,
+    COUNT(l.id_libro) AS total_libros_categoria_editorial,
+    SUM(l.stock) AS stock_total_categoria_editorial
+FROM
+    libros l
+JOIN
+    categorias c ON l.id_categoria = c.id_categoria
+LEFT JOIN
+    editoriales e ON l.id_editorial = e.id_editorial
+GROUP BY
+    c.nombre_categoria, e.nombre_editorial
+ORDER BY
+    c.nombre_categoria, e.nombre_editorial;
+
+-- Vista 6: Libros con stock bajo (adicional para cumplir 5+)
+-- Objetivo: Identificar rápidamente los libros cuyo stock está por debajo de un umbral específico.
+-- Tablas Involucradas: libros, autores, categorias.
+
+CREATE VIEW vista_libros_stock_bajo AS
+SELECT
+    l.titulo,
+    a.nombre_autor AS autor,
+    c.nombre_categoria AS categoria,
+    l.stock
+FROM
+    libros l
+JOIN
+    autores a ON l.id_autor = a.id_autor
+JOIN
+    categorias c ON l.id_categoria = c.id_categoria
+WHERE
+    l.stock < 5 AND l.activo = TRUE
+ORDER BY
+    l.stock ASC, l.titulo;
+
+-- Script de creación de Funciones
+
+-- Función 1: Promedio de días para devolver un libro 
+-- Objetivo: Calcular el tiempo promedio (en días) que tardan los usuarios en devolver un libro DESPUÉS de haberlo tomado prestado, solo para préstamos ya devueltos.
+-- Tablas involucradas: prestamos
+
+DELIMITER //
+CREATE FUNCTION promedio_dias_devolucion()
+RETURNS DECIMAL(10, 2)
+DETERMINISTIC
+BEGIN
+    DECLARE promedio DECIMAL(10, 2);
+    SELECT AVG(DATEDIFF(fecha_devolucion_real, fecha_prestamo)) INTO promedio
+    FROM prestamos
+    WHERE fecha_devolucion_real IS NOT NULL; 
+    RETURN IFNULL(promedio, 0); 
+END //
+DELIMITER ;
+
+-- Función 2: Calcular días transcurridos desde un préstamo 
+-- Objetivo: Determinar cuánto tiempo ha transcurrido desde que un libro fue prestado hasta la fecha actual, o hasta su devolución real si ya ocurrió. Útil para préstamos activos/vencidos.
+-- Tablas involucradas: prestamos
+
+DELIMITER //
+CREATE FUNCTION dias_desde_prestamo(p_id_prestamo INT)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE v_dias INT;
+    DECLARE v_fecha_prestamo DATETIME;
+    DECLARE v_fecha_devolucion_real DATETIME;
+
+    SELECT fecha_prestamo, fecha_devolucion_real
+    INTO v_fecha_prestamo, v_fecha_devolucion_real
+    FROM prestamos
+    WHERE id_prestamo = p_id_prestamo;
+
+    IF v_fecha_prestamo IS NULL THEN
+        RETURN NULL; 
+        END IF;
+
+    IF v_fecha_devolucion_real IS NOT NULL THEN
+        SET v_dias = DATEDIFF(v_fecha_devolucion_real, v_fecha_prestamo);
+    ELSE
+        SET v_dias = DATEDIFF(CURRENT_DATE(), v_fecha_prestamo);
+    END IF;
+    RETURN v_dias;
+END //
+DELIMITER ;
+
+-- Función 3: Obtener el número de préstamos activos de un usuario (NUEVA)
+-- Objetivo: Contar cuántos préstamos activos tiene un usuario en un momento dado.
+-- Tablas involucradas: prestamos
+
+DELIMITER //
+CREATE FUNCTION FN_Contar_Prestamos_Activos_Usuario(p_id_usuario INT)
+RETURNS INT
+READS SQL DATA
+BEGIN
+    DECLARE v_count INT;
+    SELECT COUNT(id_prestamo) INTO v_count
+    FROM prestamos
+    WHERE id_usuario = p_id_usuario AND estado IN ('Activo', 'Vencido');
+    RETURN v_count;
+END //
+DELIMITER ;
+
+-- Script de creación de Stored Procedures
+
+-- Stored Procedure 1: Registrar un nuevo usuario 
+-- Objetivo: Facilitar la adición de nuevos usuarios a la base de datos sin necesidad de escribir la sentencia INSERT completa cada vez.
+-- Tablas involucradas: usuarios.
+
+DELIMITER //
+CREATE PROCEDURE agregar_usuario (
+    IN p_nombre VARCHAR(30),
+    IN p_apellido VARCHAR(50),
+    IN p_dni INT,
+    IN p_email VARCHAR(100),
+    IN p_telefono VARCHAR(25),
+    IN p_id_tipo_documento INT 
+)
+BEGIN
+    INSERT INTO usuarios (
+        nombre, apellido, dni, email, telefono, id_tipo_documento
+    )
+    VALUES (
+        p_nombre, p_apellido, p_dni, p_email, p_telefono, p_id_tipo_documento
+    );
+END //
+DELIMITER ;
+
+-- Stored Procedure 2: Registrar Devolución de Libro (NUEVO)
+-- Objetivo: Registrar la devolución de un libro, actualizando el estado del préstamo, la fecha de devolución real y el stock del libro.
+-- Si la devolución es tardía, se registrará una multa.
+-- Tablas involucradas: prestamos, libros, multas, log_prestamos.
+
+DELIMITER //
+CREATE PROCEDURE SP_Registrar_Devolucion(
+    IN p_id_prestamo INT,
+    IN p_id_bibliotecario_devuelve INT
+)
+BEGIN
+    DECLARE v_id_libro INT;
+    DECLARE v_fecha_prestamo DATETIME;
+    DECLARE v_fecha_devolucion_prevista DATETIME;
+    DECLARE v_dias_retraso INT;
+    DECLARE v_monto_multa DECIMAL(10, 2);
+    DECLARE v_stock_actual INT;
+
+    START TRANSACTION;
+
+    SELECT
+        dp.id_libro,
+        p.fecha_prestamo,
+        p.fecha_devolucion_prevista
+    INTO
+        v_id_libro,
+        v_fecha_prestamo,
+        v_fecha_devolucion_prevista
+    FROM
+        prestamos p
+    JOIN
+        detalle_prestamo dp ON p.id_prestamo = dp.id_prestamo 
+    WHERE
+        p.id_prestamo = p_id_prestamo
+    LIMIT 1; 
+
+    IF v_id_libro IS NOT NULL AND (SELECT estado FROM prestamos WHERE id_prestamo = p_id_prestamo) IN ('Activo', 'Vencido') THEN
+
+        UPDATE prestamos
+        SET
+            fecha_devolucion_real = CURRENT_TIMESTAMP(),
+            estado = 'Devuelto',
+            id_bibliotecario = p_id_bibliotecario_devuelve 
+        WHERE
+            id_prestamo = p_id_prestamo;
+
+        UPDATE libros
+        SET stock = stock + 1
+        WHERE id_libro = v_id_libro;
+
+        INSERT INTO log_prestamos (id_prestamo, tipo_evento, descripcion)
+        VALUES (p_id_prestamo, 'Devolucion', CONCAT('Libro ID ', v_id_libro, ' devuelto por préstamo ', p_id_prestamo));
+
+		SET v_dias_retraso = DATEDIFF(CURRENT_DATE(), v_fecha_devolucion_prevista);
+        IF v_dias_retraso > 0 THEN
+            SET v_monto_multa = v_dias_retraso * 100.00;
+            INSERT INTO multas (id_prestamo, monto, fecha_multa, estado)
+            VALUES (p_id_prestamo, v_monto_multa, CURRENT_TIMESTAMP(), 'Pendiente');
+
+            
+            INSERT INTO log_prestamos (id_prestamo, tipo_evento, descripcion)
+            VALUES (p_id_prestamo, 'Multa Generada', CONCAT('Multa de $', v_monto_multa, ' generada por ', v_dias_retraso, ' días de retraso.'));
+        END IF;
+
+        UPDATE fact_prestamos
+        SET
+            fecha_devolucion_real_key = DATE_FORMAT(CURRENT_DATE(), '%Y%m%d'),
+            dias_prestamo = DATEDIFF(CURRENT_DATE(), v_fecha_prestamo),
+            monto_multa = v_monto_multa 
+        WHERE id_prestamo = p_id_prestamo AND id_libro = v_id_libro; 
+
+			COMMIT;
+    ELSE
+        ROLLBACK;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: El préstamo no existe o ya fue devuelto.';
+    END IF;
+
+END //
+DELIMITER ;
+
+-- Stored Procedure 3: Generar Reporte de Actividad del Bibliotecario (NUEVO - ejemplo)
+-- Objetivo: Generar un reporte de la actividad de un bibliotecario en un rango de fechas, mostrando préstamos y devoluciones procesadas.
+-- Tablas involucradas: prestamos, log_prestamos.
+
+DELIMITER //
+CREATE PROCEDURE SP_Reporte_Actividad_Bibliotecario(
+    IN p_id_bibliotecario INT,
+    IN p_fecha_inicio DATE,
+    IN p_fecha_fin DATE
+)
+BEGIN
+    SELECT
+        b.nombre AS Bibliotecario_Nombre,
+        b.apellido AS Bibliotecario_Apellido,
+        p.id_prestamo,
+        u.nombre AS Usuario_Nombre,
+        u.apellido AS Usuario_Apellido,
+        l.titulo AS Titulo_Libro,
+        p.fecha_prestamo,
+        p.fecha_devolucion_real,
+        p.estado AS Estado_Prestamo,
+        lg.tipo_evento,
+        lg.fecha_evento,
+        lg.descripcion AS Log_Descripcion
+    FROM
+        bibliotecarios b
+    LEFT JOIN
+        prestamos p ON b.id_bibliotecario = p.id_bibliotecario
+    LEFT JOIN
+        usuarios u ON p.id_usuario = u.id_usuario
+    LEFT JOIN
+        detalle_prestamo dp ON p.id_prestamo = dp.id_prestamo
+    LEFT JOIN
+        libros l ON dp.id_libro = l.id_libro
+    LEFT JOIN
+        log_prestamos lg ON p.id_prestamo = lg.id_prestamo
+    WHERE
+        b.id_bibliotecario = p_id_bibliotecario
+        AND (p.fecha_prestamo BETWEEN p_fecha_inicio AND p_fecha_fin OR lg.fecha_evento BETWEEN p_fecha_inicio AND p_fecha_fin)
+    ORDER BY
+        lg.fecha_evento, p.fecha_prestamo;
+END //
+DELIMITER ;
+
+
+-- Script de creación de Triggers 
+
+-- Trigger 1: TR_Actualizar_Stock_Prestar_Libro 
+-- Objetivo: Reducir el stock de un libro automáticamente cuando se registra un nuevo detalle_prestamo (un libro es prestado).
+-- Tablas involucradas: libros, detalle_prestamo.
+
+DELIMITER //
+CREATE TRIGGER TR_Actualizar_Stock_Prestar_Libro
+AFTER INSERT ON detalle_prestamo
+FOR EACH ROW
+BEGIN
+    UPDATE libros
+    SET stock = stock - NEW.cantidad
+    WHERE id_libro = NEW.id_libro;
+END //
+DELIMITER ;
+
+-- Trigger 2: TR_Actualizar_Stock_Cancelar_Reserva 
+-- Objetivo: Aumentar el stock de un libro si una reserva sobre él es cancelada, permitiendo que el libro vuelva a estar disponible.
+-- Tablas involucradas: libros, reservas.
+
+DELIMITER //
+CREATE TRIGGER TR_Actualizar_Stock_Cancelar_Reserva
+AFTER UPDATE ON reservas
+FOR EACH ROW
+BEGIN
+
+    IF OLD.estado IN ('Pendiente', 'Disponible') AND NEW.estado IN ('Cancelada', 'Expirada') THEN
+        UPDATE libros
+        SET stock = stock + 1
+        WHERE id_libro = NEW.id_libro;
+    END IF;
+END //
+DELIMITER ;
+
+-- Trigger 3: TR_Registrar_Auditoria_Libro 
+-- Objetivo: Registrar cualquier cambio en el título, stock o categoría de un libro en la tabla de auditoría.
+-- Tablas involucradas: libros, auditoria_libros.
+
+DELIMITER //
+CREATE TRIGGER TR_Registrar_Auditoria_Libro
+AFTER UPDATE ON libros
+FOR EACH ROW
+BEGIN
+    IF OLD.titulo <> NEW.titulo THEN
+        INSERT INTO auditoria_libros (id_libro, campo_modificado, valor_anterior, valor_nuevo, id_bibliotecario)
+        VALUES (NEW.id_libro, 'titulo', OLD.titulo, NEW.titulo, NULL); 
+    END IF;
+    IF OLD.stock <> NEW.stock THEN
+        INSERT INTO auditoria_libros (id_libro, campo_modificado, valor_anterior, valor_nuevo, id_bibliotecario)
+        VALUES (NEW.id_libro, 'stock', OLD.stock, NEW.stock, NULL);
+    END IF;
+    IF OLD.id_categoria <> NEW.id_categoria THEN
+        INSERT INTO auditoria_libros (id_libro, campo_modificado, valor_anterior, valor_nuevo, id_bibliotecario)
+        VALUES (NEW.id_libro, 'id_categoria', OLD.id_categoria, NEW.id_categoria, NULL);
+    END IF;
+END //
+DELIMITER ;
+
+
+-- Informes Generados en Base a la Información Almacenada 
+
+-- 1. Informe: Libros más populares por categoría (usando la vista de libros más prestados y uniendo con categorías)
+
+SELECT
+    lmc.titulo,
+    lmc.cantidad_prestamos,
+    c.nombre_categoria
+FROM
+    vista_libros_mas_prestados lmc
+JOIN
+    libros l ON lmc.titulo = l.titulo
+JOIN
+    categorias c ON l.id_categoria = c.id_categoria
+ORDER BY
+    lmc.cantidad_prestamos DESC;
+
+-- 2. Informe: Préstamos vencidos con detalle de usuario y libro
+
+SELECT
+    vp.id_prestamo,
+    vp.nombre_usuario,
+    vp.apellido_usuario,
+    vp.titulo_libro,
+    vp.fecha_prestamo,
+    vp.fecha_devolucion_prevista,
+    vp.dias_retraso_si_vencido AS Dias_Vencido,
+    CONCAT(b.nombre, ' ', b.apellido) AS Bibliotecario_Responsable
+FROM
+    vista_prestamos_activos_vencidos vp
+JOIN
+    prestamos p ON vp.id_prestamo = p.id_prestamo
+JOIN
+    bibliotecarios b ON p.id_bibliotecario = b.id_bibliotecario
+WHERE
+    vp.esta_vencido = 'Sí' OR vp.estado_prestamo = 'Vencido'
+ORDER BY
+    vp.dias_retraso_si_vencido DESC;
+
+-- 3. Informe: Total de Multas Pendientes por Usuario
+SELECT * FROM vista_multas_pendientes_por_usuario;
+
+-- 4. Informe: Distribución de Libros por Editorial y Cantidad Total en Stock
+SELECT
+    e.nombre_editorial,
+    COUNT(l.id_libro) AS cantidad_libros,
+    SUM(l.stock) AS stock_total
+FROM
+    editoriales e
+JOIN
+    libros l ON e.id_editorial = l.id_editorial
+GROUP BY
+    e.nombre_editorial
+ORDER BY
+    cantidad_libros DESC;
+
+-- 5. Informe: Préstamos procesados por cada Bibliotecario
+SELECT
+    b.nombre AS nombre_bibliotecario,
+    b.apellido AS apellido_bibliotecario,
+    COUNT(p.id_prestamo) AS total_prestamos_procesados
+FROM
+    bibliotecarios b
+LEFT JOIN
+    prestamos p ON b.id_bibliotecario = p.id_bibliotecario
+GROUP BY
+    b.id_bibliotecario, b.nombre, b.apellido
+ORDER BY
+    total_prestamos_procesados DESC;
